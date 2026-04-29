@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Mova</string>
+    <string name="title_activity_main">Mova</string>
+    <string name="package_name">com.mova.app</string>
+    <string name="custom_url_scheme">com.mova.app</string>
+</resources>
