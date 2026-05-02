@@ -31,9 +31,10 @@ const DEVICE_CONFIG = {
   // Delegate: Restauramos la lógica original. En celulares forzar WebGL (GPU) mueve la textura excesivamente matando CPU, 
   // pero en Desktop (PCs) la GPU es inmensamente más rápida.
   delegate: isMobile ? 'CPU' : 'GPU',
-  numHands: isMobile ? 1 : 2,
-  cameraWidth: isMobile ? { ideal: 640, max: 1280 } : { ideal: 1280, max: 1920 },
-  cameraHeight: isMobile ? { ideal: 480, max: 720 } : { ideal: 720, max: 1080 }
+  // Permitimos 1280x720 (16:9) como ideal para evitar que el navegador recorte el sensor
+  // y haga un efecto de "zoom extremo" al intentar forzar 640x480 (4:3).
+  cameraWidth: { ideal: 1280 },
+  cameraHeight: { ideal: 720 }
 };
 
 /**
@@ -67,6 +68,11 @@ export default function useHandTracking(options = {}) {
     candidateSign: '-',
     candidateFrames: 0,
   });
+  const landmarksHistoryRef = useRef([]); // Historial de frames para letras dinámicas
+
+  // Optimizaciones extremas para evitar Render Thrashing (60 FPS)
+  const handsCountRef = useRef(0);
+  const hasHandsRef = useRef(false);
 
   // Señas personalizadas (persistidas en localStorage)
   const customSignsRef = useRef(CustomSignsManager.load());
@@ -174,16 +180,35 @@ export default function useHandTracking(options = {}) {
         if (results.landmarks && results.landmarks.length > 0) {
           const isFrontCamera = facingModeRef.current === 'user';
           drawLandmarks(ctx, results.landmarks, results.handednesses, canvas.width, canvas.height, isFrontCamera);
-          setHandsCount(results.landmarks.length);
-          setHasHands(true);
+          if (handsCountRef.current !== results.landmarks.length) {
+            handsCountRef.current = results.landmarks.length;
+            setHandsCount(results.landmarks.length);
+          }
+          if (!hasHandsRef.current) {
+            hasHandsRef.current = true;
+            setHasHands(true);
+          }
+
+          // Guardar en el historial
+          landmarksHistoryRef.current.push(results.landmarks[0]);
+          if (landmarksHistoryRef.current.length > 25) {
+            landmarksHistoryRef.current.shift();
+          }
 
           // Detectar seña
-          const detection = detectarFigura(results.landmarks[0], customSignsRef.current);
+          const detection = detectarFigura(results.landmarks[0], customSignsRef.current, landmarksHistoryRef.current);
           updateSignTracking(detection);
           if (onFrameProcess) onFrameProcess(detection.nombre);
         } else {
-          setHandsCount(0);
-          setHasHands(false);
+          if (handsCountRef.current !== 0) {
+            handsCountRef.current = 0;
+            setHandsCount(0);
+          }
+          if (hasHandsRef.current) {
+            hasHandsRef.current = false;
+            setHasHands(false);
+          }
+          landmarksHistoryRef.current = []; // Limpiar historial si no hay manos
           updateSignTracking({ nombre: '-', afinidad: null });
           if (onFrameProcess) onFrameProcess('-');
         }
@@ -267,16 +292,17 @@ export default function useHandTracking(options = {}) {
       });
       ctx.stroke();
 
-      // Puntos
+      // Puntos (Optimizados en un solo path para reducir llamadas al motor gráfico 95%)
       ctx.fillStyle = color.puntos;
+      ctx.beginPath();
       mano.forEach((punto, i) => {
         const x = mapX(punto.x);
         const y = punto.y * height;
         const radio = i === 0 ? 8 : 5;
-        ctx.beginPath();
+        ctx.moveTo(x + radio, y);
         ctx.arc(x, y, radio, 0, 2 * Math.PI);
-        ctx.fill();
       });
+      ctx.fill();
 
       // Puntas resaltadas
       const pulgar = mano[4];

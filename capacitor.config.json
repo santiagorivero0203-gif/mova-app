@@ -1,5 +1,7 @@
 {
   "appId": "com.mova.app",
   "appName": "Mova",
-  "webDir": "dist"
+  "webDir": "dist",
+  "minWebViewVersion": 100,
+  "loggingBehavior": "none"
 }

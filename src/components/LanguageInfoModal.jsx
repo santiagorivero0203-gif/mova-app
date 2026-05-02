@@ -21,7 +21,7 @@ export default function LanguageInfoModal() {
 
   return (
     <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-md animate-fade-in">
-      <div className="bg-white/95 dark:bg-mova-surface-dark/95 backdrop-blur-xl w-full max-w-sm rounded-ios-xl overflow-hidden shadow-2xl animate-slide-up border border-white/20 dark:border-white/10 flex flex-col">
+      <div className="bg-mova-surface/95 backdrop-blur-xl w-full max-w-sm rounded-ios-xl overflow-hidden shadow-2xl animate-slide-up border border-white/10 flex flex-col">
         
         <div className="p-6 text-center">
           <div className="w-16 h-16 bg-mova-accent/10 dark:bg-mova-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -35,7 +35,7 @@ export default function LanguageInfoModal() {
           </p>
           
           <div className="space-y-3 text-left">
-            <div className="bg-mova-bg dark:bg-mova-secondary-dark p-3 rounded-lg border border-black/5 dark:border-white/5 transition-colors">
+            <div className="bg-mova-bg p-3 rounded-lg border border-white/5 transition-colors">
               <div className="font-bold text-sm text-mova-text-primary dark:text-white flex items-center gap-2">
                 <span>🇻🇪</span> LSV
               </div>
@@ -44,7 +44,7 @@ export default function LanguageInfoModal() {
               </p>
             </div>
             
-            <div className="bg-mova-bg dark:bg-mova-secondary-dark p-3 rounded-lg border border-black/5 dark:border-white/5 transition-colors">
+            <div className="bg-mova-bg p-3 rounded-lg border border-white/5 transition-colors">
               <div className="font-bold text-sm text-mova-text-primary dark:text-white flex items-center gap-2">
                 <span>🇺🇸</span> ASL
               </div>
@@ -53,7 +53,7 @@ export default function LanguageInfoModal() {
               </p>
             </div>
             
-            <div className="bg-mova-bg dark:bg-mova-secondary-dark p-3 rounded-lg border border-black/5 dark:border-white/5 transition-colors">
+            <div className="bg-mova-bg p-3 rounded-lg border border-white/5 transition-colors">
               <div className="font-bold text-sm text-mova-text-primary dark:text-white flex items-center gap-2">
                 <span>🇪🇸</span> LSE
               </div>
@@ -64,7 +64,7 @@ export default function LanguageInfoModal() {
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-black/5 dark:border-white/10">
+        <div className="px-6 py-4 border-t border-white/10">
           <button 
             onClick={handleClose}
             className="w-full py-3 bg-mova-accent text-white font-semibold rounded-ios-lg hover:opacity-90 transition-opacity btn-hover-scale shadow-button"

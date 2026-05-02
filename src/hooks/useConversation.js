@@ -5,7 +5,7 @@
  * Gestiona el modo de construcción de frases letra a letra.
  */
 
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useTransition } from 'react';
 import { Autocorrector } from '../core/Autocorrector.js';
 import { hablarTexto } from '../core/Speech.js';
 
@@ -16,6 +16,7 @@ export default function useConversation() {
   const [isActive, setIsActive] = useState(false);
   const [text, setText] = useState('');
   const [suggestions, setSuggestions] = useState([]);
+  const [isPending, startTransition] = useTransition();
 
   const autocorrector = useMemo(() => new Autocorrector(), []);
 
@@ -40,33 +41,37 @@ export default function useConversation() {
   }, []);
 
   const agregarEspacio = useCallback(() => {
-    setText((prev) => {
-      let newText = prev;
-      
-      // Autocorregir última palabra
-      if (newText.length > 0) {
-        const palabras = newText.split(' ');
-        const ultimaPalabra = palabras[palabras.length - 1];
-        if (ultimaPalabra.length >= 2) {
-          const correccion = autocorrector.corregir(ultimaPalabra);
-          if (correccion) {
-            palabras[palabras.length - 1] = correccion;
-            newText = palabras.join(' ');
+    startTransition(() => {
+      setText((prev) => {
+        let newText = prev;
+        
+        // Autocorregir última palabra
+        if (newText.length > 0) {
+          const palabras = newText.split(' ');
+          const ultimaPalabra = palabras[palabras.length - 1];
+          if (ultimaPalabra.length >= 2) {
+            const correccion = autocorrector.corregir(ultimaPalabra);
+            if (correccion) {
+              palabras[palabras.length - 1] = correccion;
+              newText = palabras.join(' ');
+            }
           }
         }
-      }
 
-      const result = newText + ' ';
-      updateSuggestions(result);
-      return result;
+        const result = newText + ' ';
+        updateSuggestions(result);
+        return result;
+      });
     });
   }, [autocorrector]);
 
   const borrarUltimo = useCallback(() => {
-    setText((prev) => {
-      const result = prev.slice(0, -1);
-      updateSuggestions(result);
-      return result;
+    startTransition(() => {
+      setText((prev) => {
+        const result = prev.slice(0, -1);
+        updateSuggestions(result);
+        return result;
+      });
     });
   }, []);
 
@@ -95,12 +100,14 @@ export default function useConversation() {
   }, []);
 
   const aplicarSugerencia = useCallback((sugerencia) => {
-    setText((prev) => {
-      const palabras = prev.split(' ');
-      palabras[palabras.length - 1] = sugerencia;
-      const result = palabras.join(' ') + ' ';
-      updateSuggestions(result);
-      return result;
+    startTransition(() => {
+      setText((prev) => {
+        const palabras = prev.split(' ');
+        palabras[palabras.length - 1] = sugerencia;
+        const result = palabras.join(' ') + ' ';
+        updateSuggestions(result);
+        return result;
+      });
     });
   }, []);
 
@@ -132,10 +139,12 @@ export default function useConversation() {
         tracking.framesLetra++;
 
         if (tracking.framesLetra === CONV_FRAMES_PARA_LETRA) {
-          setText((prev) => {
-            const result = prev + letraDetectada.toLowerCase();
-            updateSuggestions(result);
-            return result;
+          startTransition(() => {
+            setText((prev) => {
+              const result = prev + letraDetectada.toLowerCase();
+              updateSuggestions(result);
+              return result;
+            });
           });
           tracking.framesLetra = -999; // Evitar repetición
         }
@@ -149,11 +158,13 @@ export default function useConversation() {
       tracking.ultimaLetra = '';
 
       if (tracking.framesSinMano === CONV_FRAMES_PARA_ESPACIO) {
-        setText((prev) => {
-          if (prev.length > 0 && !prev.endsWith(' ')) {
-            agregarEspacio();
-          }
-          return prev;
+        startTransition(() => {
+          setText((prev) => {
+            if (prev.length > 0 && !prev.endsWith(' ')) {
+              agregarEspacio();
+            }
+            return prev;
+          });
         });
       }
     }

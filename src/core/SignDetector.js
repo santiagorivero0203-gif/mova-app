@@ -15,6 +15,9 @@ import {
   dedoGancho,
   dedosCruzados,
   puntoAdelante,
+  pulgarRecogido,
+  trazoJ,
+  trazoZ
 } from './VectorMath.js';
 
 export const UMBRAL_SIMILITUD = 0.07;
@@ -25,10 +28,11 @@ export const UMBRAL_PULGAR_OUT = 0.65;
 export const FIGURAS = {
   'A': '🅰️', 'B': '🅱️', 'C': '🌙', 'D': '👆',
   'E': '🇪',  'F': '👌', 'G': '👉', 'H': '🤞',
-  'I': 'ℹ️', 'K': '🤘', 'L': '🤙', 'M': 'Ⓜ️',
-  'N': '🇳',  'O': '⭕', 'P': '🅿️', 'Q': '🔽',
-  'R': '®️',  'S': '💪', 'T': '✝️', 'U': '🤞',
-  'V': '✌️', 'W': '🖖', 'X': '❌', 'Y': '🤙'
+  'I': 'ℹ️', 'J': '🪝', 'K': '🤘', 'L': '🤙',
+  'M': 'Ⓜ️', 'N': '🇳',  'O': '⭕', 'P': '🅿️',
+  'Q': '🔽', 'R': '®️',  'S': '💪', 'T': '✝️',
+  'U': '🤞', 'V': '✌️', 'W': '🖖', 'X': '❌',
+  'Y': '🤙', 'Z': '⚡'
 };
 
 /** Conexiones entre landmarks para dibujar la estructura de la mano */
@@ -52,9 +56,10 @@ export const CONEXIONES = [
  * Detecta 24 letras estáticas del lenguaje de señas.
  * @param {Array} landmarks - 21 puntos de referencia de la mano
  * @param {Array} senasPersonalizadas - Señas custom del usuario
+ * @param {Array} historial - Historial de frames para gestos dinámicos
  * @returns {{ nombre: string, afinidad: number|null }}
  */
-export function detectarFigura(landmarks, senasPersonalizadas = []) {
+export function detectarFigura(landmarks, senasPersonalizadas = [], historial = []) {
   let afinidadVectorial = null;
 
   // 1. SEÑAS PERSONALIZADAS (IA) - prioridad máxima
@@ -114,7 +119,7 @@ export function detectarFigura(landmarks, senasPersonalizadas = []) {
     dPulgar_Anular  < UMBRAL_TOQUE,
     dPulgar_Menique < UMBRAL_TOQUE
   ].filter(Boolean).length;
-  const formandoO = dPulgar_Indice < 0.35 && puntasCercaPulgar >= 2;
+  const formandoO = dPulgar_Indice < 0.35 && dPulgar_Medio < 0.35 && puntasCercaPulgar >= 2;
 
   // === CONTEOS GENERALES ===
   const dedosCerrados = [iAb, mAb, aAb, meAb].filter(d => !d).length;
@@ -139,38 +144,68 @@ export function detectarFigura(landmarks, senasPersonalizadas = []) {
   const manoApuntaAbajo = landmarks[12].y > landmarks[0].y && landmarks[8].y > landmarks[0].y;
 
   // ============================================================
-  // DETECCIÓN POR PRIORIDAD
+  // DETECCIÓN DINÁMICA (CON HISTORIAL)
+  // ============================================================
+  // Para J: meñique extendido, movimiento curvo
+  if (meAb && !iAb && !mAb && !aAb && trazoJ(historial)) return { nombre: 'J', afinidad: null };
+  // Para Z: índice extendido, movimiento zig-zag
+  if (iAb && !mAb && !aAb && !meAb && trazoZ(historial)) return { nombre: 'Z', afinidad: null };
+
+  // ============================================================
+  // DETECCIÓN ESTÁTICA POR PRIORIDAD
   // ============================================================
 
   // Se relaja aAb para Y e I porque el tendón del anular suele levantarse al estirar el meñique
-  if (pAb && meAb && !iAb && !mAb) return { nombre: 'Y', afinidad: null };
+  // Y: Pulgar lejos del índice. I: Pulgar cerca del índice/palma.
+  if (meAb && !iAb && !mAb && dPulgar_Indice > 0.6) return { nombre: 'Y', afinidad: null };
+  if (meAb && !iAb && !mAb && dPulgar_Indice < 0.55) return { nombre: 'I', afinidad: null };
+  
   if (dPulgar_Indice < 0.35 && !iAb && mAb && aAb && meAb) return { nombre: 'F', afinidad: null };
-  if (manoApuntaAbajo && iAb && mAb && !aAb && !meAb) return { nombre: 'P', afinidad: null };
+  // P (Se movió al bloque jerárquico abajo)
   if (manoApuntaAbajo && pAb && iAb && !mAb && !aAb && !meAb) return { nombre: 'Q', afinidad: null };
+  
   if (indiceHorizontal && !mAb && !aAb && !meAb) return { nombre: 'G', afinidad: null };
   if (indiceHorizontal && medioHorizontal && !aAb && !meAb) return { nombre: 'H', afinidad: null };
   if (iAb && !mAb && !aAb && !meAb && !indiceHorizontal && puntasCercaPulgar >= 1 && dPulgar_Medio < 0.45) return { nombre: 'D', afinidad: null };
+  
   if (formandoO) return { nombre: 'O', afinidad: null };
-  if (garras >= 3 && dPulgar_Indice > 0.35 && dPulgar_Indice < 0.8 && pAb) return { nombre: 'C', afinidad: null };
-  if (meAb && !iAb && !mAb && !pAb) return { nombre: 'I', afinidad: null };
-  if (iAb && mAb && !aAb && !meAb && dedosCruzados(landmarks)) return { nombre: 'R', afinidad: null };
-  if (iAb && mAb && !aAb && !meAb && pAb && dPulgar_Medio < 0.4) return { nombre: 'K', afinidad: null };
-
-  const distPuntasIM = calcDistancia(landmarks[8], landmarks[12]) / escalaPalma;
-  if (iAb && mAb && !aAb && !meAb && distPuntasIM > 0.35) return { nombre: 'V', afinidad: null };
-  if (iAb && mAb && !aAb && !meAb && !indiceHorizontal) return { nombre: 'U', afinidad: null };
+  if (garras >= 3 && dPulgar_Indice > 0.35 && dPulgar_Indice < 0.8 && !formandoO) return { nombre: 'C', afinidad: null };
+  
+  // ============================================================
+  // BLOQUE JERÁRQUICO: ÍNDICE Y MEDIO EXTENDIDOS (P, K, R, V, U)
+  // ============================================================
+  if (iAb && mAb && !aAb && !meAb) {
+    const distPuntasIM = calcDistancia(landmarks[8], landmarks[12]) / escalaPalma;
+    // P: Mano apuntando hacia abajo
+    if (manoApuntaAbajo && dPulgar_Medio < 0.45) return { nombre: 'P', afinidad: null };
+    // K: Pulgar tocando el PIP del medio, sin esconderse bajo el anular
+    if (dPulgar_PipMedio < 0.4 && dPulgar_Anular > 0.4 && !manoApuntaAbajo) return { nombre: 'K', afinidad: null };
+    // R: Dedos índice y medio cruzados
+    if (dedosCruzados(landmarks) && !manoApuntaAbajo) return { nombre: 'R', afinidad: null };
+    // V: Dedos separados
+    if (distPuntasIM > 0.35 && !manoApuntaAbajo) return { nombre: 'V', afinidad: null };
+    // U: Dedos juntos (y mano no apuntando abajo ni horizontal)
+    if (!indiceHorizontal && !manoApuntaAbajo) return { nombre: 'U', afinidad: null };
+  }
   if (pAb && iAb && !mAb && !aAb && !meAb && !formandoO) return { nombre: 'L', afinidad: null };
   if (dedoGancho(landmarks, 5, 6, 8) && !mAb && !aAb && !meAb) return { nombre: 'X', afinidad: null };
   if (iAb && mAb && aAb && meAb && !pAb) return { nombre: 'B', afinidad: null };
-  if (iAb && mAb && aAb && !meAb && !pAb) return { nombre: 'W', afinidad: null };
+  
+  // W: Índice, medio, anular extendidos. Pulgar sujeta el meñique.
+  if (iAb && mAb && aAb && !meAb && dPulgar_Menique < 0.5) return { nombre: 'W', afinidad: null };
 
   // LETRAS DE PUÑO CERRADO (A, E, S, T, M, N)
   if (todosAbajo) {
     if (pulgarClaramenteAfuera) return { nombre: 'A', afinidad: null };
-    if (dPulgar_PipIndice < 0.5 && puntoAdelante(landmarks, 4, 6) && puntoAdelante(landmarks, 4, 10)) return { nombre: 'S', afinidad: null };
-    if (dPulgar_PipIndice < 0.35 && puntoAdelante(landmarks, 6, 4)) return { nombre: 'T', afinidad: null };
-    if (dPulgar_PipAnular < 0.35 && dPulgar_PipMedio < 0.4 && puntoAdelante(landmarks, 14, 4)) return { nombre: 'M', afinidad: null };
-    if (dPulgar_PipMedio < 0.4 && dPulgar_PipAnular > 0.45 && puntoAdelante(landmarks, 10, 4)) return { nombre: 'N', afinidad: null };
+    // M: Pulgar debajo del anular/meñique
+    if (pulgarRecogido(landmarks, 14, 0.4) || pulgarRecogido(landmarks, 18, 0.4)) return { nombre: 'M', afinidad: null };
+    // N: Pulgar debajo del medio
+    if (pulgarRecogido(landmarks, 10, 0.4) && !pulgarRecogido(landmarks, 14, 0.4)) return { nombre: 'N', afinidad: null };
+    // T: Pulgar debajo del índice
+    if (pulgarRecogido(landmarks, 6, 0.4) && !pulgarRecogido(landmarks, 10, 0.4)) return { nombre: 'T', afinidad: null };
+    // S: Pulgar envuelve los dedos por delante
+    if (puntoAdelante(landmarks, 4, 10) && dPulgar_PipIndice > 0.3) return { nombre: 'S', afinidad: null };
+    
     return { nombre: 'E', afinidad: null };
   }
 
